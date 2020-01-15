@@ -1,0 +1,57 @@
+version: "3.7"
+services:
+
+  graphite:
+    image: graphiteapp/graphite-statsd # https://github.com/graphite-project/docker-graphite-statsd
+    container_name: graphite
+    ports:
+      - "80:80"                 # Graphite web interface
+      - "2003-2004:2003-2004"   # carbon receiver: 2003 text, 2004 pickle
+      - "2023-2024:2023-2024"   # carbon aggregator:  2003 text, 2024 pickle
+      - "8125:8125/udp"         # statsd
+      - "8126:8126"             # statsd admin
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"             # Grafana web interface
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION:-7.5.1}
+    container_name: elasticsearch
+    ports:
+      - "9200:9200"             # Elasticsearch REST api
+      - "9300:9300"             # Elasticsearch nodes communication
+    environment:
+      - discovery.type=single-node
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${ES_VERSION:-7.5.1}
+    container_name: kibana
+    depends_on:
+      - elasticsearch
+    ports:
+      - "5601:5601"             # Kibana web interface
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+
+  filebeat:
+    container_name: filebeat
+    depends_on:
+      - kibana
+    user: root
+    build:
+      context: ./filebeat
+      args:
+        - ES_VERSION=${ES_VERSION:-7.5.1}
+    volumes:
+      - /var/lib/docker:/var/lib/docker:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "5432:5432/udp"       # UDP input
+    environment:
+      ELASTICSEARCH_HOST: elasticsearch
+      KIBANA_HOST: kibana
+      UDP_INPUT_PORT: '5432'
+

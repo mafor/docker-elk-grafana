@@ -1,0 +1,23 @@
+filebeat.inputs:
+  - type: container
+    paths:
+      - '/var/lib/docker/containers/*/*.log'
+  - type: udp
+    host: ":${UDP_INPUT_PORT:5432}"
+
+processors:
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+
+  - decode_json_fields:
+      fields: ["message"]
+      target: "json"
+      overwrite_keys: true
+
+output.elasticsearch:
+  hosts: ["${ELASTICSEARCH_HOST:elk}:9200"]
+  indices:
+    - index: "${INDEX_PATTERN:filebeat}-%{[agent.version]}-%{+yyyy.MM.dd}"
+
+logging.json: true
+logging.metrics.enabled: false
